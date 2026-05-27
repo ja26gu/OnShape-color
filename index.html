@@ -128,7 +128,7 @@
         elementId = urlParams.get('elementId');
         const theme = urlParams.get('theme');
 
-        // Dark Mode ERZWINGEN, wenn die Onshape-URL es befiehlt
+        // Dark Mode ERZWINGEN
         if (theme === 'dark') {
             document.body.classList.add('dark-theme');
             document.documentElement.classList.add('dark-theme');
@@ -176,7 +176,7 @@
             loadParts();
         }
 
-        // Kryptografie: Baut die verschlüsselten Header für Onshape auf
+        // Kryptografie: Header bauen
         async function buildHeaders(method, path, contentType = "") {
             let accessKey = tempAccessKey;
             let secretKey = tempSecretKey;
@@ -207,19 +207,31 @@
             return headers;
         }
 
-        // API Call: Teile laden (mit Proxy!)
+        // --- HIER IST DIE MAGIE: Unsere zentrale Proxy-Funktion ---
+        async function fetchWithProxy(method, path, bodyData = null) {
+            const headers = await buildHeaders(method, path, bodyData ? 'application/json' : '');
+            
+            const targetUrl = baseUrl + path;
+            
+            // NEUER PROXY OHNE BEZAHL-SCHRANKE!
+            const proxyUrl = "https://thingproxy.freeboard.io/fetch/" + targetUrl;
+            
+            const options = { method: method, headers: headers };
+            if(bodyData) options.body = JSON.stringify(bodyData);
+            
+            return fetch(proxyUrl, options);
+        }
+
+        // API Call: Teile laden
         async function loadParts() {
             const listDiv = document.getElementById('part-list');
             listDiv.innerHTML = 'Lade Bauteile...';
 
             const path = `/api/assemblies/d/${documentId}/w/${workspaceId}/e/${elementId}`;
-            const headers = await buildHeaders('GET', path);
-            
-            // HIER IST DER TRICK: Die Anfrage geht an corsproxy, der sie an Onshape weiterreicht
-            const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(baseUrl + path);
 
             try {
-                const response = await fetch(proxyUrl, { method: 'GET', headers: headers });
+                // Wir nutzen jetzt unsere zentrale fetchWithProxy Funktion!
+                const response = await fetchWithProxy('GET', path);
                 
                 if(!response.ok) {
                     listDiv.innerHTML = `<span style="color:red">API-Fehler: ${response.status}. Keys prüfen!</span>`;
@@ -256,23 +268,19 @@
                     listDiv.appendChild(item);
                 });
             } catch (err) {
-                listDiv.innerHTML = '<span style="color:red">Kritischer Netzwerkfehler. Proxy nicht erreichbar.</span>';
+                listDiv.innerHTML = '<span style="color:red">Kritischer Netzwerkfehler. Proxy antwortet nicht.</span>';
                 console.error(err);
             }
         }
 
-        // API Call: Farbe ändern (mit Proxy!)
+        // API Call: Farbe ändern
         async function changeAppearance(instanceId, hexColor) {
             const r = parseInt(hexColor.substr(1, 2), 16);
             const g = parseInt(hexColor.substr(3, 2), 16);
             const b = parseInt(hexColor.substr(5, 2), 16);
 
             const path = `/api/assemblies/d/${documentId}/w/${workspaceId}/e/${elementId}/appearances`;
-            const headers = await buildHeaders('POST', path, 'application/json');
             
-            // Proxy auch für das Ändern der Farben nutzen
-            const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(baseUrl + path);
-
             const bodyData = {
                 "appearances": [
                     {
@@ -286,12 +294,8 @@
             };
 
             try {
-                const response = await fetch(proxyUrl, {
-                    method: 'POST',
-                    headers: headers,
-                    body: JSON.stringify(bodyData)
-                });
-                
+                // Auch hier nutzen wir den Proxy für das Speichern
+                const response = await fetchWithProxy('POST', path, bodyData);
                 if(!response.ok) {
                     console.error("Fehler beim Speichern der Farbe: " + response.statusText);
                 }
