@@ -208,18 +208,40 @@
         }
 
         // --- HIER IST DIE MAGIE: Unsere zentrale Proxy-Funktion ---
+// --- HIER IST DIE MAGIE: Unsere zentrale Proxy-Funktion mit Fallbacks ---
         async function fetchWithProxy(method, path, bodyData = null) {
             const headers = await buildHeaders(method, path, bodyData ? 'application/json' : '');
-            
             const targetUrl = baseUrl + path;
             
-            // NEUER PROXY OHNE BEZAHL-SCHRANKE!
-            const proxyUrl = "https://thingproxy.freeboard.io/fetch/" + targetUrl;
+            // Eine Liste der besten kostenlosen Proxys
+            const proxies = [
+                "https://corsproxy.org/?" + encodeURIComponent(targetUrl),
+                "https://api.allorigins.win/raw?url=" + encodeURIComponent(targetUrl)
+            ];
             
             const options = { method: method, headers: headers };
             if(bodyData) options.body = JSON.stringify(bodyData);
             
-            return fetch(proxyUrl, options);
+            let lastError;
+
+            // Probiert die Proxys nacheinander durch
+            for (let proxyUrl of proxies) {
+                try {
+                    console.log("Versuche Proxy: ", proxyUrl);
+                    const response = await fetch(proxyUrl, options);
+                    
+                    // Wenn Onshape antwortet (egal ob mit Daten oder Fehlermeldung), sind wir durch!
+                    if (response.ok || response.status === 401 || response.status === 400) {
+                        return response;
+                    }
+                } catch (e) {
+                    console.warn("Proxy fehlgeschlagen, probiere den nächsten...", proxyUrl);
+                    lastError = e;
+                }
+            }
+            
+            // Wenn alle Stricke reißen
+            throw lastError;
         }
 
         // API Call: Teile laden
