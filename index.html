@@ -114,7 +114,7 @@
         <div id="part-list">Lade...</div>
     </div>
 
-    <script>
+<script>
         const baseUrl = "https://cad.onshape.com";
         let documentId, workspaceId, elementId;
         
@@ -128,9 +128,10 @@
         elementId = urlParams.get('elementId');
         const theme = urlParams.get('theme');
 
-        // Dark Mode automatisch aktivieren, wenn Onshape dunkel ist
+        // Dark Mode ERZWINGEN, wenn die Onshape-URL es befiehlt
         if (theme === 'dark') {
             document.body.classList.add('dark-theme');
+            document.documentElement.classList.add('dark-theme');
         }
 
         window.onload = () => {
@@ -162,7 +163,7 @@
             } catch(e) {}
 
             if(!documentId || documentId.includes("{")) {
-                alert("Fehler: Dokument-ID fehlt oder ist falsch (" + documentId + "). Hast du die Action URL im Portal korrigiert?");
+                alert("Fehler: Dokument-ID fehlt oder ist falsch (" + documentId + ").");
                 return;
             }
 
@@ -175,6 +176,7 @@
             loadParts();
         }
 
+        // Kryptografie: Baut die verschlüsselten Header für Onshape auf
         async function buildHeaders(method, path, contentType = "") {
             let accessKey = tempAccessKey;
             let secretKey = tempSecretKey;
@@ -205,16 +207,19 @@
             return headers;
         }
 
+        // API Call: Teile laden (mit Proxy!)
         async function loadParts() {
             const listDiv = document.getElementById('part-list');
             listDiv.innerHTML = 'Lade Bauteile...';
 
-            // API Endpoint für Assembly Instanzen
             const path = `/api/assemblies/d/${documentId}/w/${workspaceId}/e/${elementId}`;
             const headers = await buildHeaders('GET', path);
+            
+            // HIER IST DER TRICK: Die Anfrage geht an corsproxy, der sie an Onshape weiterreicht
+            const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(baseUrl + path);
 
             try {
-                const response = await fetch(baseUrl + path, { method: 'GET', headers: headers });
+                const response = await fetch(proxyUrl, { method: 'GET', headers: headers });
                 
                 if(!response.ok) {
                     listDiv.innerHTML = `<span style="color:red">API-Fehler: ${response.status}. Keys prüfen!</span>`;
@@ -240,7 +245,7 @@
 
                     const colorPicker = document.createElement('input');
                     colorPicker.type = 'color';
-                    colorPicker.value = "#cccccc"; // Standard Startfarbe
+                    colorPicker.value = "#cccccc"; 
                     
                     colorPicker.addEventListener('change', (e) => {
                         changeAppearance(instance.id, e.target.value);
@@ -251,18 +256,23 @@
                     listDiv.appendChild(item);
                 });
             } catch (err) {
-                listDiv.innerHTML = '<span style="color:red">Netzwerkfehler.</span>';
+                listDiv.innerHTML = '<span style="color:red">Kritischer Netzwerkfehler. Proxy nicht erreichbar.</span>';
                 console.error(err);
             }
         }
 
+        // API Call: Farbe ändern (mit Proxy!)
         async function changeAppearance(instanceId, hexColor) {
             const r = parseInt(hexColor.substr(1, 2), 16);
             const g = parseInt(hexColor.substr(3, 2), 16);
             const b = parseInt(hexColor.substr(5, 2), 16);
 
             const path = `/api/assemblies/d/${documentId}/w/${workspaceId}/e/${elementId}/appearances`;
+            const headers = await buildHeaders('POST', path, 'application/json');
             
+            // Proxy auch für das Ändern der Farben nutzen
+            const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(baseUrl + path);
+
             const bodyData = {
                 "appearances": [
                     {
@@ -275,10 +285,8 @@
                 ]
             };
 
-            const headers = await buildHeaders('POST', path, 'application/json');
-
             try {
-                const response = await fetch(baseUrl + path, {
+                const response = await fetch(proxyUrl, {
                     method: 'POST',
                     headers: headers,
                     body: JSON.stringify(bodyData)
