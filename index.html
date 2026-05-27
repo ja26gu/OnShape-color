@@ -5,28 +5,107 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Assembly Color Changer</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 15px; background: #f4f5f6; color: #333; }
-        h3 { margin-top: 0; font-size: 16px; color: #156082; }
-        .panel { background: white; padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 15px; }
-        input[type="text"], input[type="password"] { width: 100%; padding: 8px; margin: 5px 0 15px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        button { background-color: #156082; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; width: 100%; }
-        button:hover { background-color: #0e455e; }
-        .part-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #eee; }
+        /* CSS Variablen für Hell- und Dunkelmodus */
+        :root {
+            --bg-body: #f4f5f6;
+            --bg-panel: #ffffff;
+            --text-main: #333333;
+            --text-muted: #666666;
+            --border-color: #cccccc;
+            --border-light: #eeeeee;
+            --primary-btn: #156082;
+            --primary-hover: #0e455e;
+        }
+
+        /* Dark Mode Farben */
+        body.dark-theme {
+            --bg-body: #222222;
+            --bg-panel: #333333;
+            --text-main: #f0f0f0;
+            --text-muted: #aaaaaa;
+            --border-color: #555555;
+            --border-light: #444444;
+            --primary-btn: #3d8bb5;
+            --primary-hover: #58a1c9;
+        }
+
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            padding: 15px; 
+            background: var(--bg-body); 
+            color: var(--text-main); 
+            transition: background 0.3s, color 0.3s;
+        }
+        h3 { margin-top: 0; font-size: 16px; color: var(--primary-btn); }
+        p { font-size: 12px; color: var(--text-muted); }
+        
+        .panel { 
+            background: var(--bg-panel); 
+            padding: 15px; 
+            border-radius: 6px; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2); 
+            margin-bottom: 15px; 
+        }
+        
+        input[type="text"], input[type="password"] { 
+            width: 100%; 
+            padding: 8px; 
+            margin: 5px 0 15px; 
+            border: 1px solid var(--border-color); 
+            border-radius: 4px; 
+            box-sizing: border-box; 
+            background: var(--bg-body);
+            color: var(--text-main);
+        }
+        
+        button { 
+            background-color: var(--primary-btn); 
+            color: white; 
+            border: none; 
+            padding: 8px 12px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            width: 100%; 
+            font-weight: bold;
+        }
+        button:hover { background-color: var(--primary-hover); }
+        
+        .part-item { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            padding: 8px 0; 
+            border-bottom: 1px solid var(--border-light); 
+        }
         .part-item:last-child { border-bottom: none; }
-        .part-name { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 70%; }
-        input[type="color"] { border: none; width: 30px; height: 30px; padding: 0; cursor: pointer; border-radius: 3px; }
+        .part-name { 
+            font-size: 14px; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+            white-space: nowrap; 
+            max-width: 70%; 
+        }
+        input[type="color"] { 
+            border: 1px solid var(--border-color); 
+            width: 30px; 
+            height: 30px; 
+            padding: 0; 
+            cursor: pointer; 
+            border-radius: 4px; 
+            background: var(--bg-panel);
+        }
     </style>
 </head>
 <body>
 
     <div class="panel" id="settings-panel">
         <h3>API Keys eintragen</h3>
-        <p style="font-size: 12px; color: #666;">Da diese App auf GitHub Pages läuft, trage hier deine persönlichen Onshape API-Keys ein. Sie bleiben nur in deinem Browser gespeichert.</p>
+        <p>Da diese App auf GitHub Pages läuft, trage hier deine persönlichen Onshape API-Keys ein. Sie bleiben nur in deinem Browser gespeichert.</p>
         <label>Access Key:</label>
         <input type="text" id="access-key" placeholder="Dein Access Key">
         <label>Secret Key:</label>
         <input type="password" id="secret-key" placeholder="Dein Secret Key">
-        <button onclick="saveKeys()">Speichern & Laden</button>
+        <button onclick="saveKeys()">Speichern & Starten</button>
     </div>
 
     <div class="panel" id="parts-panel" style="display: none;">
@@ -35,11 +114,10 @@
         <div id="part-list">Lade...</div>
     </div>
 
-<script>
+    <script>
         const baseUrl = "https://cad.onshape.com";
         let documentId, workspaceId, elementId;
         
-        // Temporärer Speicher, falls der Browser localStorage blockiert
         let tempAccessKey = "";
         let tempSecretKey = "";
 
@@ -48,8 +126,13 @@
         documentId = urlParams.get('documentId');
         workspaceId = urlParams.get('workspaceId');
         elementId = urlParams.get('elementId');
+        const theme = urlParams.get('theme');
 
-        // Beim Start prüfen, ob Keys gespeichert sind (mit Fehlerabfang)
+        // Dark Mode automatisch aktivieren, wenn Onshape dunkel ist
+        if (theme === 'dark') {
+            document.body.classList.add('dark-theme');
+        }
+
         window.onload = () => {
             try {
                 if(localStorage.getItem('onshape_access_key') && localStorage.getItem('onshape_secret_key')) {
@@ -57,7 +140,7 @@
                     document.getElementById('secret-key').value = localStorage.getItem('onshape_secret_key');
                 }
             } catch(e) {
-                console.warn("Lokaler Speicher ist blockiert (Drittanbieter-Schutz).");
+                console.warn("Lokaler Speicher ist blockiert.");
             }
         };
 
@@ -70,20 +153,16 @@
                 return;
             }
 
-            // Keys im Arbeitsspeicher behalten
             tempAccessKey = ak;
             tempSecretKey = sk;
 
-            // Versuch, sie im Browser zu speichern
             try {
                 localStorage.setItem('onshape_access_key', ak);
                 localStorage.setItem('onshape_secret_key', sk);
-            } catch(e) {
-                console.warn("Konnte Keys nicht dauerhaft speichern. Sie gelten nur für diese Sitzung.");
-            }
+            } catch(e) {}
 
-            if(!documentId) {
-                alert("Fehler: Onshape hat keine Dokument-ID übermittelt. Bist du in einer Baugruppe?");
+            if(!documentId || documentId.includes("{")) {
+                alert("Fehler: Dokument-ID fehlt oder ist falsch (" + documentId + "). Hast du die Action URL im Portal korrigiert?");
                 return;
             }
 
@@ -130,6 +209,7 @@
             const listDiv = document.getElementById('part-list');
             listDiv.innerHTML = 'Lade Bauteile...';
 
+            // API Endpoint für Assembly Instanzen
             const path = `/api/assemblies/d/${documentId}/w/${workspaceId}/e/${elementId}`;
             const headers = await buildHeaders('GET', path);
 
@@ -137,7 +217,7 @@
                 const response = await fetch(baseUrl + path, { method: 'GET', headers: headers });
                 
                 if(!response.ok) {
-                    listDiv.innerHTML = `<span style="color:red">API-Fehler: ${response.status} ${response.statusText}. Sind deine API-Keys korrekt?</span>`;
+                    listDiv.innerHTML = `<span style="color:red">API-Fehler: ${response.status}. Keys prüfen!</span>`;
                     return;
                 }
 
@@ -160,7 +240,7 @@
 
                     const colorPicker = document.createElement('input');
                     colorPicker.type = 'color';
-                    colorPicker.value = "#888888";
+                    colorPicker.value = "#cccccc"; // Standard Startfarbe
                     
                     colorPicker.addEventListener('change', (e) => {
                         changeAppearance(instance.id, e.target.value);
@@ -171,7 +251,7 @@
                     listDiv.appendChild(item);
                 });
             } catch (err) {
-                listDiv.innerHTML = '<span style="color:red">Netzwerkfehler. Möglicherweise blockiert der Browser die Anfrage.</span>';
+                listDiv.innerHTML = '<span style="color:red">Netzwerkfehler.</span>';
                 console.error(err);
             }
         }
@@ -204,10 +284,8 @@
                     body: JSON.stringify(bodyData)
                 });
                 
-                if(response.ok) {
-                    console.log("Farbe erfolgreich geändert!");
-                } else {
-                    alert("Fehler beim Speichern der Farbe: " + response.statusText);
+                if(!response.ok) {
+                    console.error("Fehler beim Speichern der Farbe: " + response.statusText);
                 }
             } catch (err) {
                 console.error("Netzwerkfehler:", err);
