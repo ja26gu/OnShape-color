@@ -209,39 +209,36 @@
 
         // --- HIER IST DIE MAGIE: Unsere zentrale Proxy-Funktion ---
 // --- HIER IST DIE MAGIE: Unsere zentrale Proxy-Funktion mit Fallbacks ---
+   // --- HIER IST DIE MAGIE: Unsere zentrale Proxy-Funktion (Cors-Anywhere) ---
         async function fetchWithProxy(method, path, bodyData = null) {
             const headers = await buildHeaders(method, path, bodyData ? 'application/json' : '');
             const targetUrl = baseUrl + path;
             
-            // Eine Liste der besten kostenlosen Proxys
-            const proxies = [
-                "https://corsproxy.org/?" + encodeURIComponent(targetUrl),
-                "https://api.allorigins.win/raw?url=" + encodeURIComponent(targetUrl)
-            ];
+            // Der stabilste Entwickler-Proxy der Welt
+            const proxyUrl = "https://cors-anywhere.herokuapp.com/" + targetUrl;
             
             const options = { method: method, headers: headers };
             if(bodyData) options.body = JSON.stringify(bodyData);
             
-            let lastError;
-
-            // Probiert die Proxys nacheinander durch
-            for (let proxyUrl of proxies) {
-                try {
-                    console.log("Versuche Proxy: ", proxyUrl);
-                    const response = await fetch(proxyUrl, options);
-                    
-                    // Wenn Onshape antwortet (egal ob mit Daten oder Fehlermeldung), sind wir durch!
-                    if (response.ok || response.status === 401 || response.status === 400) {
-                        return response;
-                    }
-                } catch (e) {
-                    console.warn("Proxy fehlgeschlagen, probiere den nächsten...", proxyUrl);
-                    lastError = e;
+            const response = await fetch(proxyUrl, options);
+            
+            // Proxy-Sperre abfangen und den Freischalt-Link in deiner App anzeigen!
+            if (response.status === 403) {
+                const errorText = await response.clone().text();
+                if (errorText.includes("corsdemo")) {
+                    document.getElementById('part-list').innerHTML = `
+                        <div style="background: rgba(255,0,0,0.1); padding: 15px; border-radius: 6px; border: 1px solid red; font-size: 13px;">
+                            <b>🔒 Kurzer Sicherheits-Check!</b><br><br>
+                            Wir nutzen den Entwickler-Proxy "Cors-Anywhere", um die Sicherheitsregeln des Browsers zu umgehen.<br><br>
+                            <b>So schaltest du ihn für deine Sitzung frei:</b><br>
+                            1. <a href="https://cors-anywhere.herokuapp.com/corsdemo" target="_blank" style="color: var(--primary-btn); font-weight: bold; text-decoration: underline;">Klicke HIER (öffnet neuen Tab)</a><br>
+                            2. Klicke dort auf den Button <b>"Request temporary access to the demo server"</b>.<br>
+                            3. Komm zurück hierher und klicke oben auf "Neu laden".<br>
+                        </div>`;
+                    throw new Error("PROXY_LOCKED");
                 }
             }
-            
-            // Wenn alle Stricke reißen
-            throw lastError;
+            return response;
         }
 
         // API Call: Teile laden
@@ -252,7 +249,6 @@
             const path = `/api/assemblies/d/${documentId}/w/${workspaceId}/e/${elementId}`;
 
             try {
-                // Wir nutzen jetzt unsere zentrale fetchWithProxy Funktion!
                 const response = await fetchWithProxy('GET', path);
                 
                 if(!response.ok) {
@@ -290,7 +286,10 @@
                     listDiv.appendChild(item);
                 });
             } catch (err) {
-                listDiv.innerHTML = '<span style="color:red">Kritischer Netzwerkfehler. Proxy antwortet nicht.</span>';
+                // Nur wenn es KEIN Proxy-Lock-Fehler war, den Text überschreiben
+                if(err.message !== "PROXY_LOCKED") {
+                    listDiv.innerHTML = '<span style="color:red">Kritischer Netzwerkfehler. Proxy antwortet nicht.</span>';
+                }
                 console.error(err);
             }
         }
